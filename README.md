@@ -4,7 +4,7 @@
 
 ## 在线试玩
 
-GitHub Pages 地址将在仓库发布后补充。
+https://bluefairy1028.github.io/shifting-palace-v03/
 
 ## 游戏模式
 
@@ -37,4 +37,3 @@ python3 -m http.server 4173
 - 神殿机制与载具停滞率
 - 15 分钟内的自然完成率
 - AI 难度和决策空间
-
