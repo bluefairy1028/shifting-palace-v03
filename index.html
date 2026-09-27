@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="《移宫》V0.3 载具绑定版双人策略游戏试玩原型">
+  <title>移宫 V0.3 · 载具绑定版</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23151d33'/%3E%3Cpath d='M13 46h38M18 27h28M22 27v19M32 27v19M42 27v19M16 27l16-12 16 12' fill='none' stroke='%23f0c674' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b1020;
+      --surface: #151d33;
+      --surface-2: #202a44;
+      --ink: #f3f6ff;
+      --muted: #a9b3cc;
+      --line: #35415f;
+      --gold: #f0c674;
+      --gold-soft: #5f4d24;
+      --blue: #55a8ff;
+      --blue-soft: #173f6d;
+      --red: #ff6b75;
+      --red-soft: #6c2731;
+      --green: #6fe0b4;
+      --danger: #ff9a9f;
+      --cell: clamp(54px, 8vw, 88px);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: radial-gradient(circle at 50% -20%, #24304f 0, var(--bg) 48%); color: var(--ink); }
+    button, select { font: inherit; }
+    button { color: inherit; }
+    .app { width: min(1180px, 100%); margin: 0 auto; padding: 20px; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+    .brand h1 { font-size: clamp(1.4rem, 3vw, 2rem); margin: 0; font-weight: 750; letter-spacing: .04em; }
+    .brand p { margin: 4px 0 0; color: var(--muted); font-size: .92rem; }
+    .top-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: end; }
+    .btn { border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); padding: 10px 14px; border-radius: 10px; min-height: 44px; cursor: pointer; }
+    .btn:hover:not(:disabled) { border-color: var(--gold); }
+    .btn:focus-visible { outline: 3px solid color-mix(in srgb, var(--gold) 55%, transparent); outline-offset: 2px; }
+    .btn:disabled { opacity: .38; cursor: not-allowed; }
+    .btn.primary { background: var(--gold); color: #17130a; border-color: transparent; font-weight: 750; }
+    .btn.danger { color: var(--danger); }
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 22px; align-items: start; }
+    .playfield { min-width: 0; display: flex; flex-direction: column; align-items: center; }
+    .status-strip { width: min(100%, 610px); display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; margin-bottom: 14px; }
+    .player-chip { display: flex; gap: 9px; align-items: center; border: 1px solid transparent; padding: 9px 11px; border-radius: 12px; color: var(--muted); }
+    .player-chip.red { justify-content: end; text-align: right; }
+    .player-chip.active { color: var(--ink); background: var(--surface); border-color: var(--line); }
+    .dot { width: 13px; height: 13px; border-radius: 50%; background: var(--blue); box-shadow: 0 0 0 4px var(--blue-soft); flex: 0 0 auto; }
+    .red .dot { background: var(--red); box-shadow: 0 0 0 4px var(--red-soft); }
+    .player-meta { display: block; font-size: .78rem; margin-top: 2px; }
+    .timer { font-variant-numeric: tabular-nums; font-size: 1.25rem; font-weight: 750; padding: 8px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+    .timer.expired { color: var(--danger); }
+    .board-shell { position: relative; padding: 18px 54px; max-width: 100%; }
+    .board { position: relative; width: calc(var(--cell) * 5); height: calc(var(--cell) * 5); max-width: calc(100vw - 122px); max-height: calc(100vw - 122px); background: #0e1629; border: 2px solid #61708f; box-shadow: 0 18px 50px #02050c99; }
+    .grid { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(5, 1fr); pointer-events: none; }
+    .grid-cell { border-right: 1px solid #36435f; border-bottom: 1px solid #36435f; position: relative; }
+    .grid-cell:nth-child(5n) { border-right: 0; }
+    .grid-cell:nth-child(n+21) { border-bottom: 0; }
+    .grid-cell.hole::after { content: ""; position: absolute; inset: 16%; border-radius: 50%; background: #050914; box-shadow: inset 0 0 0 2px #33415f; }
+    .grid-cell.shrine { background: radial-gradient(circle, #775f28 0 25%, #2b2c34 27% 45%, #171e31 47%); }
+    .grid-cell.shrine::after { content: "神"; position: absolute; inset: 0; display: grid; place-items: center; color: var(--gold); font-weight: 800; font-size: clamp(1rem, 3vw, 1.7rem); }
+    .grid-cell.legal { background: color-mix(in srgb, var(--green) 23%, transparent); cursor: pointer; pointer-events: auto; }
+    .grid-cell.legal::before { content: ""; position: absolute; inset: 34%; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 6px color-mix(in srgb, var(--green) 18%, transparent); }
+    .grid-cell.protected { background: repeating-linear-gradient(135deg, transparent 0 8px, #f0c67433 8px 14px); }
+    .piece { position: absolute; display: grid; place-items: center; border: 0; border-radius: 10px; transition: transform .25s ease, box-shadow .15s ease; z-index: 3; user-select: none; -webkit-user-select: none; }
+    .piece.block { background: linear-gradient(145deg, #465574, #2d3956); box-shadow: inset 0 0 0 2px #6f7f9f, 0 5px 12px #02050c80; color: #dce5fb; font-weight: 750; }
+    .piece.block:hover, .piece.block.selected { box-shadow: inset 0 0 0 3px var(--gold), 0 7px 18px #02050ca6; }
+    .piece.block.selectable { cursor: pointer; }
+    .piece.carrier { border-radius: 18px; z-index: 5; font-size: clamp(.72rem, 1.8vw, 1rem); font-weight: 800; line-height: 1.05; text-align: center; }
+    .piece.carrier::before { content: ""; width: 30%; aspect-ratio: 1; border-radius: 50%; background: currentColor; margin-bottom: 2px; }
+    .piece.carrier.blue { background: linear-gradient(145deg, #dceeff, #74baff); color: #0a3768; box-shadow: inset 0 0 0 3px var(--blue), 0 7px 18px #061830aa; }
+    .piece.carrier.red { background: linear-gradient(145deg, #ffe1e3, #ff8991); color: #67111a; box-shadow: inset 0 0 0 3px var(--red), 0 7px 18px #30060baa; }
+    .piece.carrier.active { animation: pulse 1.4s ease-in-out infinite; }
+    @keyframes pulse { 50% { filter: brightness(1.15); transform: var(--piece-transform) scale(.96); } }
+    @media (prefers-reduced-motion: reduce) { .piece { transition: none; } .piece.carrier.active { animation: none; } }
+    .exit { position: absolute; top: 50%; transform: translateY(-50%); width: 46px; color: var(--muted); text-align: center; font-size: .75rem; font-weight: 750; }
+    .exit.left { left: 2px; }
+    .exit.right { right: 2px; }
+    .exit .arrow { display: block; font-size: 1.8rem; line-height: 1; }
+    .exit.blue { color: var(--blue); }
+    .exit.red { color: var(--red); }
+    .exit.legal { cursor: pointer; filter: drop-shadow(0 0 7px currentColor); }
+    .controls { width: min(100%, 610px); margin-top: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; }
+    .instruction { min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+    .instruction strong { display: block; }
+    .instruction span { color: var(--muted); font-size: .88rem; }
+    .direction-pad { display: grid; grid-template-columns: repeat(3, 48px); grid-template-rows: repeat(2, 44px); gap: 6px; justify-content: center; }
+    .direction-pad button { padding: 0; min-height: 44px; }
+    .direction-pad .up { grid-column: 2; }
+    .direction-pad .left { grid-column: 1; grid-row: 2; }
+    .direction-pad .down { grid-column: 2; grid-row: 2; }
+    .direction-pad .right { grid-column: 3; grid-row: 2; }
+    .rescue-actions { display: flex; gap: 8px; justify-content: center; margin-top: 10px; }
+    .sidebar { display: grid; gap: 14px; }
+    .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+    .panel h2 { margin: 0 0 12px; font-size: 1rem; }
+    .phase-label { display: inline-flex; align-items: center; gap: 7px; padding: 6px 9px; border-radius: 999px; background: var(--gold-soft); color: #ffe8ac; font-size: .82rem; font-weight: 750; }
+    .objective { display: grid; gap: 9px; margin-top: 13px; }
+    .objective-row { display: grid; grid-template-columns: 18px 1fr auto; gap: 8px; align-items: center; color: var(--muted); }
+    .objective-row.done { color: var(--green); }
+    .objective-row .check { width: 17px; height: 17px; border: 1px solid currentColor; border-radius: 50%; display: grid; place-items: center; font-size: .7rem; }
+    .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+    .stat { background: var(--surface-2); padding: 10px; border-radius: 10px; }
+    .stat span { display: block; color: var(--muted); font-size: .76rem; }
+    .stat strong { display: block; font-size: 1.05rem; margin-top: 3px; font-variant-numeric: tabular-nums; }
+    .log { margin: 0; padding: 0; list-style: none; display: grid; gap: 7px; max-height: 210px; overflow: auto; }
+    .log li { color: var(--muted); font-size: .83rem; padding-bottom: 7px; border-bottom: 1px solid #ffffff0d; }
+    .log li:first-child { color: var(--ink); }
+    dialog { color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 18px; width: min(680px, calc(100% - 28px)); max-height: 84vh; padding: 0; box-shadow: 0 24px 90px #000b; }
+    dialog::backdrop { background: #030611d9; backdrop-filter: blur(4px); }
+    .dialog-body { padding: 22px; }
+    .dialog-body h2 { margin-top: 0; }
+    .dialog-body h3 { font-size: 1rem; margin: 1.2rem 0 .45rem; }
+    .dialog-body p, .dialog-body li { color: var(--muted); line-height: 1.65; }
+    .dialog-actions { position: sticky; bottom: 0; display: flex; justify-content: end; padding: 14px 22px; background: var(--surface); border-top: 1px solid var(--line); }
+    .setup-grid { display: grid; gap: 15px; }
+    .choice-group { display: grid; gap: 8px; }
+    .choice-group legend, .choice-group label.head { font-weight: 750; margin-bottom: 2px; }
+    .radio-card { display: flex; gap: 10px; align-items: center; background: var(--surface-2); border: 1px solid var(--line); border-radius: 11px; padding: 11px; cursor: pointer; }
+    .radio-card:has(input:checked) { border-color: var(--gold); }
+    select { width: 100%; background: var(--surface-2); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; padding: 11px; min-height: 44px; }
+    .winner { text-align: center; }
+    .winner-mark { font-size: 3.4rem; margin-bottom: 4px; }
+    .winner p { color: var(--muted); }
+    .ai-thinking { opacity: .7; pointer-events: none; }
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .sidebar .panel:last-child { grid-column: 1 / -1; }
+    }
+    @media (max-width: 620px) {
+      :root { --cell: calc((100vw - 92px) / 5); }
+      .app { padding: 12px; }
+      .topbar { align-items: flex-start; }
+      .brand p { display: none; }
+      .board-shell { padding-inline: 34px; }
+      .board { max-width: none; max-height: none; }
+      .exit { width: 30px; }
+      .exit.left { left: 0; } .exit.right { right: 0; }
+      .status-strip { grid-template-columns: 1fr auto 1fr; }
+      .player-chip { padding: 7px; font-size: .85rem; }
+      .player-meta { display: none; }
+      .sidebar { grid-template-columns: 1fr; }
+      .sidebar .panel:last-child { grid-column: auto; }
+      .instruction { align-items: flex-start; flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app" id="app">
+    <header class="topbar">
+      <div class="brand"><h1>移宫 <span style="color:var(--gold)">V0.3</span></h1><p>载具绑定版 · 竞争型滑块迷宫</p></div>
+      <div class="top-actions">
+        <button class="btn" id="rulesBtn">规则</button>
+        <button class="btn danger" id="newBtn">新对局</button>
+      </div>
+    </header>
+
+    <div class="layout">
+      <section class="playfield" aria-label="游戏棋盘">
+        <div class="status-strip">
+          <div class="player-chip blue" id="blueChip"><span class="dot"></span><div><strong>蓝方</strong><span class="player-meta" id="blueRole">玩家</span></div></div>
+          <div class="timer" id="timer">15:00</div>
+          <div class="player-chip red" id="redChip"><div><strong>红方</strong><span class="player-meta" id="redRole">玩家</span></div><span class="dot"></span></div>
+        </div>
+        <div class="board-shell">
+          <div class="exit left red" id="leftExit" aria-label="红方出口"><span class="arrow">←</span>红出口</div>
+          <div class="board" id="board" role="grid" aria-label="5乘5移宫棋盘">
+            <div class="grid" id="grid"></div>
+            <div id="pieces"></div>
+          </div>
+          <div class="exit right blue" id="rightExit" aria-label="蓝方出口"><span class="arrow">→</span>蓝出口</div>
+        </div>
+        <div class="controls" id="controls">
+          <div class="instruction"><div><strong id="instructionTitle">准备开始</strong><span id="instructionText">选择游戏模式后开始对局。</span></div><span class="phase-label" id="phaseLabel">未开始</span></div>
+          <div class="direction-pad" id="directionPad">
+            <button class="btn up" data-dir="-1,0" aria-label="向上滑动">↑</button>
+            <button class="btn left" data-dir="0,-1" aria-label="向左滑动">←</button>
+            <button class="btn down" data-dir="1,0" aria-label="向下滑动">↓</button>
+            <button class="btn right" data-dir="0,1" aria-label="向右滑动">→</button>
+          </div>
+          <div class="rescue-actions" id="rescueActions" hidden><button class="btn" id="endTurnBtn">放弃脱困，结束回合</button></div>
+        </div>
+      </section>
+
+      <aside class="sidebar">
+        <section class="panel"><h2>当前目标</h2><div id="objective" class="objective"></div></section>
+        <section class="panel"><h2>测试数据</h2><div class="stats"><div class="stat"><span>完整轮数</span><strong id="roundStat">0</strong></div><div class="stat"><span>载具停滞</span><strong id="stallStat">0</strong></div><div class="stat"><span>神殿访问</span><strong id="shrineStat">0 / 2</strong></div><div class="stat"><span>模式</span><strong id="modeStat">—</strong></div></div></section>
+        <section class="panel"><h2>行动记录</h2><ol class="log" id="log"><li>等待开始。</li></ol></section>
+      </aside>
+    </div>
+  </main>
+
+  <dialog id="setupDialog">
+    <form method="dialog" class="dialog-body" id="setupForm">
+      <h2>开始一局《移宫》</h2>
+      <div class="setup-grid">
+        <fieldset class="choice-group"><legend>对局模式</legend>
+          <label class="radio-card"><input type="radio" name="mode" value="ai" checked><span><strong>对战 AI</strong><br><small style="color:var(--muted)">你控制蓝方，AI控制红方</small></span></label>
+          <label class="radio-card"><input type="radio" name="mode" value="local"><span><strong>本地双人</strong><br><small style="color:var(--muted)">同一设备轮流操作</small></span></label>
+        </fieldset>
+        <label class="choice-group" id="difficultyWrap"><span class="head">AI 难度</span><select name="difficulty"><option value="easy">入门 · 随机合法行动</option><option value="medium" selected>标准 · 主动趋近目标</option><option value="hard">挑战 · 预判对手下一手</option></select></label>
+        <label class="choice-group"><span class="head">先手</span><select name="first"><option value="random" selected>随机决定</option><option value="0">蓝方先手</option><option value="1">红方先手</option></select></label>
+      </div>
+      <div style="display:flex;justify-content:end;margin-top:20px"><button class="btn primary" value="start">开始对局</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="rulesDialog"><div class="dialog-body"><h2>V0.3 快速规则</h2>
+    <h3>目标</h3><p>旅人始终留在自己的载具块上。先进入中央神殿，再从对面出口驶出棋盘。</p>
+    <h3>一个回合</h3><ol><li>滑动一个普通块一格。</li><li>若载具有合法移动，必须驶入相邻空格或神殿。</li><li>若载具仍被困，可额外滑动一个普通块，也可直接结束回合。</li></ol>
+    <h3>神殿</h3><p>普通块不得进入神殿。载具进入后，入口格会被保护，保证下次可以离开。离开时也可选择其他相邻空格。</p>
+    <h3>防止循环</h3><p>不得立即把对手刚移动的同一普通块推回原位；若因此无块可动，则允许撤销。</p>
+    <h3>超时</h3><p>15分钟到后补完当前轮。先比较是否到过神殿，再比较到当前目标的曼哈顿距离。</p>
+  </div><div class="dialog-actions"><button class="btn primary" id="closeRules">知道了</button></div></dialog>
+
+  <dialog id="resultDialog"><div class="dialog-body winner"><div class="winner-mark" id="winnerMark">◆</div><h2 id="winnerTitle">对局结束</h2><p id="winnerText"></p></div><div class="dialog-actions"><button class="btn primary" id="playAgainBtn">再玩一局</button></div></dialog>
+
+  <script>
+  (() => {
+    "use strict";
+    const ROWS = 5, COLS = 5, SHRINE = [2,2], STARTS = [[2,0],[2,4]], EXITS = [[2,4],[2,0]], LIMIT = 15 * 60;
+    const DIRS = [[-1,0],[1,0],[0,-1],[0,1]];
+    const INITIAL_BLOCKS = [
+      {id:"A",cells:[[0,0],[1,0]]},{id:"B",cells:[[0,1],[0,2]]},{id:"C",cells:[[0,3],[0,4]]},{id:"D",cells:[[1,3],[1,4]]},
+      {id:"E",cells:[[3,0],[3,1]]},{id:"F",cells:[[3,4],[4,4]]},{id:"G",cells:[[4,0],[4,1]]},{id:"H",cells:[[4,2],[4,3]]},
+      {id:"a",cells:[[1,2]]},{id:"b",cells:[[2,1]]},{id:"c",cells:[[2,3]]},{id:"d",cells:[[3,2]]}
+    ];
+    const $ = s => document.querySelector(s);
+    const board = $("#board"), grid = $("#grid"), pieces = $("#pieces");
+    let state = null, selectedBlock = null, mode = "ai", difficulty = "medium", aiBusy = false, timerId = null;
+    const dialogs = { setup: $("#setupDialog"), rules: $("#rulesDialog"), result: $("#resultDialog") };
+    const key = p => `${p[0]},${p[1]}`;
+    const same = (a,b) => a && b && a[0] === b[0] && a[1] === b[1];
+    const clone = obj => structuredClone(obj);
+    const inBoard = p => p[0] >= 0 && p[0] < ROWS && p[1] >= 0 && p[1] < COLS;
+    const opposite = d => [-d[0],-d[1]];
+    const playerName = p => p === 0 ? "蓝方" : "红方";
+
+    function freshState(first) {
+      return {
+        blocks: clone(INITIAL_BLOCKS), carriers: clone(STARTS), visited: [false,false], protected: null,
+        current: first, lastSlide: null, phase: "engineering", rescueUsed: false, selected: null,
+        turns: [0,0], stalls: 0, shrineVisits: 0, log: [`${playerName(first)}获得先手。`],
+        startedAt: Date.now(), timeExpired: false, winner: null, draw: false
+      };
+    }
+
+    function blockMap(s) {
+      const m = new Map(); s.blocks.forEach((b,i) => b.cells.forEach(c => m.set(key(c), i))); return m;
+    }
+    function occupiedSet(s) { const set = new Set(blockMap(s).keys()); s.carriers.forEach(c => set.add(key(c))); return set; }
+    function normalHoles(s) {
+      const occ = occupiedSet(s), holes = [];
+      for (let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) if (!occ.has(`${r},${c}`) && !same([r,c],SHRINE)) holes.push([r,c]);
+      return holes;
+    }
+    function canSlide(s, blockIndex, delta) {
+      const block = s.blocks[blockIndex], map = blockMap(s), shifted = block.cells.map(([r,c]) => [r+delta[0],c+delta[1]]);
+      if (shifted.some(p => !inBoard(p) || same(p,SHRINE) || s.carriers.some(x => same(x,p)) || (s.protected && same(s.protected.cell,p)))) return false;
+      return shifted.every(p => !map.has(key(p)) || map.get(key(p)) === blockIndex);
+    }
+    function legalEngineering(s, last = s.lastSlide) {
+      const all = [];
+      s.blocks.forEach((b,i) => DIRS.forEach(d => { if (canSlide(s,i,d)) all.push({block:i,delta:d}); }));
+      const filtered = all.filter(m => !(last && m.block === last.block && same(m.delta, opposite(last.delta))));
+      return filtered.length ? filtered : all;
+    }
+    function slideRaw(s, move) {
+      s.blocks[move.block].cells = s.blocks[move.block].cells.map(([r,c]) => [r+move.delta[0],c+move.delta[1]]).sort();
+      s.lastSlide = {block: move.block, delta: [...move.delta]};
+    }
+    function carrierMoves(s, p) {
+      const cur = s.carriers[p], occ = occupiedSet(s), moves = [];
+      if (same(cur,SHRINE)) {
+        DIRS.forEach(([dr,dc]) => { const d=[2+dr,2+dc]; if(inBoard(d) && !occ.has(key(d))) moves.push(d); });
+        return moves;
+      }
+      if (s.visited[p] && same(cur,EXITS[p])) moves.push("exit");
+      DIRS.forEach(([dr,dc]) => {
+        const d=[cur[0]+dr,cur[1]+dc]; if(!inBoard(d)) return;
+        if(same(d,SHRINE)) { if(!s.carriers.some(x=>same(x,SHRINE))) moves.push(d); }
+        else if(!occ.has(key(d))) moves.push(d);
+      });
+      return moves;
+    }
+    function moveCarrierRaw(s,p,dest) {
+      if(dest === "exit") { s.winner = p; return; }
+      const old=[...s.carriers[p]]; s.carriers[p]=[...dest];
+      if(same(dest,SHRINE)) { if(!s.visited[p]) s.shrineVisits++; s.visited[p]=true; s.protected={player:p,cell:old}; }
+      else if(same(old,SHRINE) && s.protected?.player===p) s.protected=null;
+    }
+    function targetDistance(s,p) { const t=s.visited[p]?EXITS[p]:SHRINE,c=s.carriers[p]; return Math.abs(c[0]-t[0])+Math.abs(c[1]-t[1]); }
+    function evaluate(s,p) { return 8*((s.visited[p]?1:0)-(s.visited[1-p]?1:0))+1.5*(targetDistance(s,1-p)-targetDistance(s,p)); }
+    function finishTurnRaw(s, p, stalled=false) {
+      s.turns[p]++; if(stalled) s.stalls++; s.current=1-p; s.phase="engineering"; s.rescueUsed=false;
+    }
+
+    function enumerateTurns(source) {
+      const p=source.current, results=[], eng=legalEngineering(source);
+      const firstMoves = eng.length ? eng : [null];
+      firstMoves.forEach(m1 => {
+        const s1=clone(source), steps=[]; if(m1){slideRaw(s1,m1);steps.push({type:"block",move:m1});}
+        const cm=carrierMoves(s1,p);
+        if(cm.length) cm.forEach(dest => { const sf=clone(s1);moveCarrierRaw(sf,p,dest);finishTurnRaw(sf,p,false);results.push({state:sf,steps:[...steps,{type:"carrier",dest}],winner:sf.winner,stalled:false}); });
+        else {
+          const skipped=clone(s1);finishTurnRaw(skipped,p,true);results.push({state:skipped,steps,winner:null,stalled:true});
+          if(m1) legalEngineering(s1,s1.lastSlide).forEach(m2 => {
+            const s2=clone(s1);slideRaw(s2,m2);const steps2=[...steps,{type:"block",move:m2}],cm2=carrierMoves(s2,p);
+            if(cm2.length) cm2.forEach(dest=>{const sf=clone(s2);moveCarrierRaw(sf,p,dest);finishTurnRaw(sf,p,false);results.push({state:sf,steps:[...steps2,{type:"carrier",dest}],winner:sf.winner,stalled:false});});
+            else {const sf=clone(s2);finishTurnRaw(sf,p,true);results.push({state:sf,steps:steps2,winner:null,stalled:true});}
+          });
+        }
+      });
+      return results;
+    }
+
+    function chooseAI() {
+      const actions=enumerateTurns(state), p=state.current;
+      if(difficulty==="easy") return actions[Math.floor(Math.random()*actions.length)];
+      let scored=actions.map(a=>({a,score:(a.winner===p?1000:evaluate(a.state,p))-(a.stalled?.8:0)}));
+      if(difficulty==="hard") scored=scored.map(item=>{
+        if(item.a.winner===p) return item;
+        const replies=enumerateTurns(item.a.state); const worst=replies.length?Math.min(...replies.map(r=>r.winner===1-p?-1000:evaluate(r.state,p))):item.score;
+        return {a:item.a,score:worst};
+      });
+      const best=Math.max(...scored.map(x=>x.score)), choices=scored.filter(x=>Math.abs(x.score-best)<1e-9); return choices[Math.floor(Math.random()*choices.length)].a;
+    }
+
+    function appendLog(text) { state.log.unshift(text); state.log=state.log.slice(0,10); }
+    function isHumanTurn() { return mode==="local" || state.current===0; }
+    const wait = ms => new Promise(r=>setTimeout(r,ms));
+    async function runAI() {
+      if(mode!=="ai" || state.current!==1 || state.winner!==null || aiBusy) return;
+      aiBusy=true; render(); await wait(450); const action=chooseAI(), p=state.current;
+      for(const step of action.steps){
+        if(step.type==="block") { slideRaw(state,step.move); appendLog(`AI 滑动了 ${state.blocks[step.move.block].id}。`); }
+        else { moveCarrierRaw(state,p,step.dest); appendLog(step.dest==="exit"?"AI 驶出了棋盘。":"AI 移动了载具。"); }
+        render(); await wait(330);
+      }
+      if(action.stalled) appendLog("AI 的载具本回合停滞。");
+      const animatedLog=[...state.log];
+      state=action.state; state.log=animatedLog; aiBusy=false;
+      if(action.winner!==null){render();showResult(action.winner,false);return;}
+      afterTurn();
+    }
+
+    function startGame(opts={}) {
+      mode=opts.mode||mode; difficulty=opts.difficulty||difficulty;
+      const first=opts.first==="random"||opts.first===undefined?(Math.random()<.5?0:1):Number(opts.first);
+      state=freshState(first); selectedBlock=null; aiBusy=false;
+      clearInterval(timerId); timerId=setInterval(tick,500); normalizeHumanTurnStart(); render(); if(dialogs.setup.open)dialogs.setup.close();
+      if(!isHumanTurn()) setTimeout(runAI,450);
+    }
+    function tick(){ if(!state||state.winner!==null)return; const left=Math.max(0,LIMIT-Math.floor((Date.now()-state.startedAt)/1000)); if(left===0)state.timeExpired=true; renderTimer(left); }
+    function renderTimer(left){ const m=String(Math.floor(left/60)).padStart(2,"0"),s=String(left%60).padStart(2,"0");$("#timer").textContent=`${m}:${s}`;$("#timer").classList.toggle("expired",left===0); }
+
+    function renderGrid(legalCarrier=[]) {
+      const holes=new Set(normalHoles(state).map(key)), legal=new Set(legalCarrier.filter(x=>x!=="exit").map(key)); grid.innerHTML="";
+      for(let r=0;r<5;r++)for(let c=0;c<5;c++){
+        const el=document.createElement("div");el.className="grid-cell";el.setAttribute("role","gridcell");el.dataset.cell=`${r},${c}`;
+        if(holes.has(`${r},${c}`))el.classList.add("hole"); if(r===2&&c===2)el.classList.add("shrine");
+        if(state.protected&&same(state.protected.cell,[r,c]))el.classList.add("protected");
+        if(legal.has(`${r},${c}`)){el.classList.add("legal");el.addEventListener("click",()=>humanCarrierMove([r,c]));}
+        grid.appendChild(el);
+      }
+    }
+    function pieceStyle(cells){ const rs=cells.map(x=>x[0]),cs=cells.map(x=>x[1]),r=Math.min(...rs),c=Math.min(...cs),h=Math.max(...rs)-r+1,w=Math.max(...cs)-c+1;return `left:calc(${c} * 20% + 4px);top:calc(${r} * 20% + 4px);width:calc(${w} * 20% - 8px);height:calc(${h} * 20% - 8px);`; }
+    function renderPieces(canSelect) {
+      pieces.innerHTML=""; state.blocks.forEach((b,i)=>{const el=document.createElement("button");el.className="piece block"+(canSelect?" selectable":"")+(selectedBlock===i?" selected":"");el.style.cssText=pieceStyle(b.cells);el.textContent=b.id;el.setAttribute("aria-label",`滑块 ${b.id}`);el.disabled=!canSelect;el.addEventListener("click",()=>{selectedBlock=i;render();});pieces.appendChild(el);});
+      state.carriers.forEach((c,p)=>{const el=document.createElement("div");el.className=`piece carrier ${p===0?"blue":"red"}`+(state.current===p?" active":"");el.style.cssText=pieceStyle([c]);el.style.setProperty("--piece-transform","translate(0,0)");el.innerHTML=`<span>${p===0?"蓝":"红"}</span>`;pieces.appendChild(el);});
+    }
+    function phaseInfo() {
+      if(aiBusy)return ["AI 正在思考","AI 将依次调整机关和移动载具。","AI 回合"];
+      if(state.phase==="engineering")return ["调整机关","点选一个普通块，再用方向键滑动一格。","1 · 工程"];
+      if(state.phase==="rescue")return ["载具被困","可再滑动一个普通块，或直接结束回合。","2 · 脱困"];
+      return ["移动载具","点击高亮空格。如有合法移动，必须移动。","3 · 旅行"];
+    }
+    function renderControls() {
+      const human=isHumanTurn()&&!aiBusy, canSelect=human&&(state.phase==="engineering"||state.phase==="rescue"), moves=canSelect&&selectedBlock!==null?legalEngineering(state).filter(m=>m.block===selectedBlock):[];
+      document.querySelectorAll("[data-dir]").forEach(btn=>{const d=btn.dataset.dir.split(",").map(Number);btn.disabled=!moves.some(m=>same(m.delta,d));});
+      $("#directionPad").style.display=canSelect?"grid":"none";$("#rescueActions").hidden=!(human&&state.phase==="rescue");
+      return canSelect;
+    }
+    function renderObjective() {
+      const p=state.current, visited=state.visited[p], atExit=same(state.carriers[p],EXITS[p]);
+      $("#objective").innerHTML=`<div class="objective-row done"><span class="check">✓</span><span>从起点出发</span><small>${playerName(p)}</small></div><div class="objective-row ${visited?"done":""}"><span class="check">${visited?"✓":"2"}</span><span>进入中央神殿</span><small>${visited?"已完成":"进行中"}</small></div><div class="objective-row ${atExit?"done":""}"><span class="check">${atExit?"✓":"3"}</span><span>从对面出口离开</span><small>${atExit?"可驶出":"未完成"}</small></div>`;
+    }
+    function render() {
+      if(!state)return;
+      const human=isHumanTurn()&&!aiBusy, cm=human&&state.phase==="carrier"?carrierMoves(state,state.current):[];
+      renderGrid(cm); const canSelect=renderControls(); renderPieces(canSelect);
+      $("#blueChip").classList.toggle("active",state.current===0);$("#redChip").classList.toggle("active",state.current===1);
+      $("#blueRole").textContent=mode==="ai"?"你":"玩家1";$("#redRole").textContent=mode==="ai"?`AI·${difficulty==="easy"?"入门":difficulty==="hard"?"挑战":"标准"}`:"玩家2";
+      const info=phaseInfo();$("#instructionTitle").textContent=`${playerName(state.current)} · ${info[0]}`;$("#instructionText").textContent=info[1];$("#phaseLabel").textContent=info[2];
+      $("#roundStat").textContent=Math.min(...state.turns);$("#stallStat").textContent=state.stalls;$("#shrineStat").textContent=`${state.shrineVisits} / 2`;$("#modeStat").textContent=mode==="ai"?"AI":"双人";
+      $("#log").innerHTML=state.log.map(x=>`<li>${x}</li>`).join("");renderObjective();
+      $("#leftExit").classList.toggle("legal",cm.includes("exit")&&state.current===1);$("#rightExit").classList.toggle("legal",cm.includes("exit")&&state.current===0);
+    }
+
+    function moveSelected(delta) {
+      if(!state||selectedBlock===null||!isHumanTurn()||aiBusy)return;
+      const legal=legalEngineering(state).find(m=>m.block===selectedBlock&&same(m.delta,delta));if(!legal)return;
+      const id=state.blocks[selectedBlock].id;slideRaw(state,legal);appendLog(`${playerName(state.current)} 滑动了 ${id}。`);selectedBlock=null;
+      const moves=carrierMoves(state,state.current);
+      if(moves.length)state.phase="carrier";else if(state.phase==="engineering")state.phase="rescue";else {appendLog(`${playerName(state.current)}的载具本回合停滞。`);endHumanTurn(true);return;}render();
+    }
+    function humanCarrierMove(dest) {
+      if(state.phase!=="carrier"||!isHumanTurn()||aiBusy)return;const moves=carrierMoves(state,state.current);if(dest!=="exit"&&!moves.some(m=>m!=="exit"&&same(m,dest)))return;if(dest==="exit"&&!moves.includes("exit"))return;
+      const p=state.current;moveCarrierRaw(state,p,dest);appendLog(dest==="exit"?`${playerName(p)}驶出棋盘。`:`${playerName(p)}移动了载具。`);
+      if(state.winner!==null){showResult(p,false);return;}endHumanTurn(false);
+    }
+    function endHumanTurn(stalled) { const p=state.current;finishTurnRaw(state,p,stalled);selectedBlock=null;afterTurn(); }
+    function normalizeHumanTurnStart() {
+      if(!state||!isHumanTurn()||state.phase!=="engineering"||legalEngineering(state).length)return;
+      appendLog(`${playerName(state.current)}没有合法工程移动，跳过工程阶段。`);
+      if(carrierMoves(state,state.current).length)state.phase="carrier";
+      else {const p=state.current;appendLog(`${playerName(p)}的载具也无法移动，回合结束。`);finishTurnRaw(state,p,true);}
+    }
+    function afterTurn() {
+      if(state.timeExpired&&state.turns[0]===state.turns[1]){finishByTime();return;}
+      normalizeHumanTurnStart();render();if(mode==="ai"&&state.current===1)setTimeout(runAI,420);
+    }
+    function finishByTime() {
+      let winner=null,reason="";
+      if(state.visited[0]!==state.visited[1]){winner=state.visited[0]?0:1;reason="时间到：只有该玩家到过神殿。";}
+      else {const d0=targetDistance(state,0),d1=targetDistance(state,1);if(d0!==d1){winner=d0<d1?0:1;reason="时间到：该玩家更接近当前目标。";}else reason="时间到，双方进度相同。";}
+      if(winner===null){state.draw=true;showResult(null,true,reason);}else showResult(winner,false,reason);
+    }
+    function showResult(winner,draw=false,reason="") {
+      clearInterval(timerId);state.winner=winner;$("#winnerMark").textContent=draw?"◇":winner===0?"🔵":"🔴";$("#winnerTitle").textContent=draw?"平局":`${playerName(winner)}获胜`;
+      $("#winnerText").textContent=reason||`${playerName(winner)}已经访问神殿并从对面出口离开。`;dialogs.result.showModal();render();
+    }
+
+    document.querySelectorAll("[data-dir]").forEach(b=>b.addEventListener("click",()=>moveSelected(b.dataset.dir.split(",").map(Number))));
+    document.addEventListener("keydown",e=>{const map={ArrowUp:[-1,0],ArrowDown:[1,0],ArrowLeft:[0,-1],ArrowRight:[0,1]};if(map[e.key]){e.preventDefault();moveSelected(map[e.key]);}});
+    $("#leftExit").addEventListener("click",()=>{if(state?.current===1)humanCarrierMove("exit");});$("#rightExit").addEventListener("click",()=>{if(state?.current===0)humanCarrierMove("exit");});
+    $("#endTurnBtn").addEventListener("click",()=>{appendLog(`${playerName(state.current)}放弃脱困，载具停滞。`);endHumanTurn(true);});
+    $("#rulesBtn").addEventListener("click",()=>dialogs.rules.showModal());$("#closeRules").addEventListener("click",()=>dialogs.rules.close());
+    $("#newBtn").addEventListener("click",()=>dialogs.setup.showModal());$("#playAgainBtn").addEventListener("click",()=>{dialogs.result.close();dialogs.setup.showModal();});
+    document.querySelectorAll('input[name="mode"]').forEach(x=>x.addEventListener("change",()=>{$("#difficultyWrap").hidden=x.form.mode.value!=="ai";}));
+    $("#setupForm").addEventListener("submit",e=>{const fd=new FormData(e.currentTarget);startGame({mode:fd.get("mode"),difficulty:fd.get("difficulty"),first:fd.get("first")});});
+
+    function registerWebMCP(){const ctx=document.modelContext;if(!ctx?.registerTool)return;const ac=new AbortController();
+      Promise.resolve(ctx.registerTool({name:"read_game_state",title:"读取移宫对局",description:"读取当前《移宫》V0.3对局的回合、阶段、载具位置与神殿进度。",inputSchema:{type:"object",properties:{},additionalProperties:false},annotations:{readOnlyHint:true,untrustedContentHint:false},execute(){if(!state)return{status:"not_started"};return{status:"active",current_player:playerName(state.current),phase:state.phase,carriers:state.carriers,visited_shrine:state.visited,turns:state.turns};}},{signal:ac.signal})).catch(()=>{});
+      Promise.resolve(ctx.registerTool({name:"start_new_shifting_palace_game",title:"开始新对局",description:"使用指定模式和先手设置开始一局新的《移宫》V0.3。",inputSchema:{type:"object",properties:{mode:{type:"string",enum:["ai","local"]},difficulty:{type:"string",enum:["easy","medium","hard"]},first:{type:"string",enum:["random","0","1"]}},required:["mode"],additionalProperties:false},annotations:{readOnlyHint:false,untrustedContentHint:false},execute(input){if(!["ai","local"].includes(input.mode))throw new Error("Invalid mode");startGame({mode:input.mode,difficulty:input.difficulty||"medium",first:input.first||"random"});return{started:true,mode:input.mode,current_player:playerName(state.current)};}},{signal:ac.signal})).catch(()=>{});
+    }
+    registerWebMCP();
+    state=freshState(0);render();dialogs.setup.showModal();
+  })();
+  </script>
+</body>
+</html>
